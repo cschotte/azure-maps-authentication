@@ -8,7 +8,7 @@ Our [Azure Maps docs](https://docs.azuremaps.com/) describe in detail [many diff
 
 In this article, we use the following resources:
 
-* .NET 8.0 and the C# programming language. You can download, and install the latest version of .NET from https://dot.net/
+* .NET 9.0 and the C# programming language. You can download, and install the latest version of .NET from https://dot.net/
 * To make it easier to edit source code, we also recommend installing Visual Studio Code Edition, which is a lightweight but powerful source code editor from Microsoft https://code.visualstudio.com/
 * Before you can use Azure Maps, you will need to sign up for a free Azure subscription, at https://azure.microsoft.com/free
 * And finally, install the Azure Command-Line Interface (CLI) tools. Read here [How to install the Azure CLI](https://docs.microsoft.com/cli/azure/install-azure-cli).
@@ -17,11 +17,11 @@ In this article, we use the following resources:
 
 Let's start with a basic .NET web application and Azure Maps. No authentication yet, that will come in the next paragraph. This first step will use an Azure Maps Key (a ‘shared Key authentication’ or subscription key) that should **not** be used in production. An Azure Maps Key has complete control over your Azure Maps resource. In the next paragraph, we will remove this key and replace this with managed identities for Azure resources.
 
-Create a folder, we called ours `AzureMapsDemo`, and add a new web application to it. Then open the newly created web application in Visual Studio Code. Start PowerShell (or any other terminal) and enter the following commands:
+Create a folder, we called ours `AzureMapsDemo`, and add a new web application to it. Then open the newly created web application in Visual Studio Code. Start a terminal and enter the following commands:
 
 ```cmd
-dotnet new mvc -lang C# -n AzureMapsDemo -f net8.0
-cd .\AzureMapsDemo
+dotnet new mvc -lang C# -n AzureMapsDemo -f net9.0
+cd AzureMapsDemo
 code .
 ```
 
@@ -86,19 +86,19 @@ az account set --subscription "<your subscription>"
 1.3 Create a resource group, and change the name and the location for your needs.
 
 ```cmd
-az group create -l westeurope -n rg-azuremaps
+az group create --location westeurope --name rg-azuremaps
 ```
 
 1.4 Create the Azure Maps Account, and accept the terms and conditions. Save the uniqueId for later.
 
 ```cmd
-az maps account create -n map-azuremaps -g rg-azuremaps -s "G2" --kind "Gen2"
+az maps account create --name map-azuremaps --resource-group rg-azuremaps --sku S2
 ```
 
 1.5 Now we can extract the Azure Maps Primary Key and add it to the Home view in our web application.
 
 ```cmd
-az maps account keys list -n map-azuremaps -g rg-azuremaps
+az maps account keys list --name map-azuremaps --resource-group rg-azuremaps
 ```
 
 1.6 Replace the `[YOUR_AZURE_MAPS_KEY]` in the file `Views/Home/index.cshtml` with the Azure Maps Primary Key we just listed in step 1.5.
@@ -124,15 +124,15 @@ We start by creating an Azure Web App where our web application will be hosted a
 2.1 Create an app service plan and web app, and change the unique name and the location for your needs.
 
 ```cmd
-az appservice plan create -g rg-azuremaps -n plan-azuremaps -l westeurope
+az appservice plan create --resource-group rg-azuremaps --name plan-azuremaps --location westeurope --sku B1
 
-az webapp create -g rg-azuremaps -p plan-azuremaps -n web-azuremaps -r "dotnet:8"
+az webapp create --resource-group rg-azuremaps --plan plan-azuremaps --name web-azuremaps --runtime "DOTNET|9.0"
 ```
 
 2.2 Next, we create a system-assigned identity for this web app. When finished, we are presented with the `principalId`, we need this in the next step. To make it simple, you can see the system-assigned identity as an account Azure manages.
 
 ```cmd
-az webapp identity assign -n web-azuremaps -g rg-azuremaps
+az webapp identity assign --name web-azuremaps --resource-group rg-azuremaps
 ```
 
 2.3 Now that we have the `principalId` (use this in the below command) for this system-assigned identity, we can assign the role (what can this system-assigned identity do and access). In this step, we assign the role of [Azure Maps Data Reader](https://docs.microsoft.com/azure/azure-maps/azure-maps-authentication#picking-a-role-definition) to this system-assigned identity, which means that this system-assigned identity can only read and not modify or delete data from your Azure Maps account. You already see this is way more secure than the plain Azure Maps key, which has all the rights to do everything. We also need the `[YOUR_AZURE_SUBSCRIPTION_ID]` from the first step.
@@ -141,7 +141,7 @@ az webapp identity assign -n web-azuremaps -g rg-azuremaps
 az role assignment create --assignee "[PRINCIPAL_ID]" --role "Azure Maps Data Reader" --scope "/subscriptions/[YOUR_AZURE_SUBSCRIPTION_ID]/resourceGroups/rg-azuremaps/providers/Microsoft.Maps/accounts/map-azuremaps"
 ```
 
-> **Hint** to get your Azure subscription Id use the following command: `az account subscription list`
+> **Hint** to get your Azure subscription Id use the following command: `az account show --query id --output tsv`
 
 2.4 To get the access token from Azure Active Directory (AAD) back to the client (the web browser), we will create a simple proxy API forwarding this access token. We start by creating an API controller in our web application and adding the `GetAzureMapsToken()` method.
 
@@ -206,7 +206,7 @@ authOptions: {
 2.8 We also need to update the `clientId` we saved when we created the Azure Maps account. (Optional) To get the Azure Maps Client Id again, use the value of `uniqueId` from:
 
 ```cmd
-az maps account show -n map-azuremaps -g rg-azuremaps
+az maps account show --name map-azuremaps --resource-group rg-azuremaps
 ```
 
 ![Managed Identity](images/managed_identity.png)
@@ -215,14 +215,16 @@ az maps account show -n map-azuremaps -g rg-azuremaps
 
 ```cmd
 dotnet publish --configuration Release
-
-Compress-Archive -Path bin\Release\net8.0\publish\* -DestinationPath release1.zip
+# For Windows PowerShell
+Compress-Archive -Path bin/Release/net9.0/publish/* -DestinationPath release1.zip
+# For macOS/Linux (alternative)
+# zip -r release1.zip bin/Release/net9.0/publish/*
 ```
 
 2.10 Then we publish our release package to the Azure Web App.
 
 ```cmd
-az webapp deployment source config-zip -g rg-azuremaps -n web-azuremaps --src release1.zip
+az webapp deployment source config-zip --resource-group rg-azuremaps --name web-azuremaps --src release1.zip
 ```
 
 2.11 Open a web browser and navigate to the https://web-azuremaps.azurewebsites.net/ where the **web-azuremaps** subdomain is your unique name when creating the Azure Web App. The application looks like this:
@@ -348,7 +350,7 @@ app.Run();
 3.6 Replace the `[PUBLISHER_DOMAIN]` and `[APP_ID]` with the values we saved in step 1 when we registered the application. Your Azure Active Directory Tenant ID `[AAD_TENANT_ID]`, you can get with the following command:
 
 ```cmd
-az account tenant list
+az account show --query tenantId --output tsv
 ```
 
 ![Azure Active Directory](images/azure_active_directory.png)
@@ -357,14 +359,16 @@ az account tenant list
 
 ```cmd
 dotnet publish --configuration Release
-
-Compress-Archive -Path bin\Release\net8.0\publish\* -DestinationPath release2.zip
+# For Windows PowerShell
+Compress-Archive -Path bin/Release/net9.0/publish/* -DestinationPath release2.zip
+# For macOS/Linux (alternative)
+# zip -r release2.zip bin/Release/net9.0/publish/*
 ```
 
 3.8 Then we publish our release package to the Azure Web App.
 
 ```cmd
-az webapp deployment source config-zip -g rg-azuremaps -n web-azuremaps --src release2.zip
+az webapp deployment source config-zip --resource-group rg-azuremaps --name web-azuremaps --src release2.zip
 ```
 
 3.9 Open a web browser and navigate to the https://web-azuremaps.azurewebsites.net/ where the **web-azuremaps** subdomain is your unique name when creating the Azure Web App. You are now prompted to log in with your work or school account (AAD) and give permissions.
@@ -374,7 +378,7 @@ az webapp deployment source config-zip -g rg-azuremaps -n web-azuremaps --src re
 3.10 A recommended last step is to disable the use of the Azure Maps Key authentication.
 
 ```cmd
-az maps account update -n map-azuremaps -g rg-azuremaps --disable-local-auth true -s "G2"
+az maps account update --name map-azuremaps --resource-group rg-azuremaps --disable-local-auth true --sku S2
 ```
 
 ## Conclusion
