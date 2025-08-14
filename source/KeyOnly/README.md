@@ -6,6 +6,8 @@
 
 This sample demonstrates the simplest way to integrate Azure Maps using a subscription key. Perfect for learning Azure Maps basics and local development.
 
+![Azure Maps using a subscription key](images/azure_maps_key.png)
+
 ## Prerequisites
 
 - Azure Maps account (see [main README](../../README.md#step-1-set-up-azure-infrastructure))
