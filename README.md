@@ -50,6 +50,11 @@ az maps account show --name map-azuremaps --resource-group rg-azuremaps
 
 ### Step 2: Choose Your Authentication Path
 
+> **⚠️ CRITICAL SETUP NOTE**  
+> **Azure Maps has its own Client ID** that is different from Microsoft Entra ID App Registration Client IDs.  
+> Always use the Azure Maps Client ID for the `AzureMaps:ClientId` setting.  
+> Get it with: `az maps account show --name map-azuremaps --resource-group rg-azuremaps --query "properties.uniqueId" --output tsv`
+
 #### 🟡 Option A: Start with Subscription Key (Development)
 Perfect for learning and local development. **Not recommended for production.**
 
@@ -123,7 +128,13 @@ User Request → Microsoft Entra Authentication → App Service (Managed Identit
 
 ## 🛠️ Common Setup Commands
 
-Get your Azure subscription and tenant information:
+### Get Azure Maps Client ID (Important!)
+```bash
+# Get your Azure Maps Client ID - THIS IS NOT THE SAME as your App Registration Client ID
+az maps account show --name map-azuremaps --resource-group rg-azuremaps --query "properties.uniqueId" --output tsv
+```
+
+### Get other Azure information:
 ```bash
 # Get subscription ID
 az account show --query id --output tsv
@@ -144,9 +155,22 @@ az maps account list --output table
 
 ## 🔧 Troubleshooting
 
+### ⚠️ Critical: Two Different Client IDs
+**This is the #1 source of confusion for developers**
+
+There are TWO different Client IDs used in this solution:
+
+| Client ID Type | Purpose | Where to Find | Used In |
+|----------------|---------|---------------|---------|
+| **Azure Maps Client ID** | Identifies your Maps account | Azure Portal → Your Maps Account → Authentication | `AzureMaps:ClientId` setting |
+| **App Registration Client ID** | Identifies your Microsoft Entra ID app | Azure Portal → Microsoft Entra ID → App Registrations | `AzureAd:ClientId` setting |
+
+**⚠️ Common Mistake**: Using the App Registration Client ID in the `AzureMaps:ClientId` setting will cause 401 authentication errors.
+
 ### Common Issues
 - **Map not loading**: Check browser console for authentication errors
-- **Token errors**: Verify managed identity has correct RBAC permissions
+- **Token errors**: Verify managed identity has correct RBAC permissions  
+- **401 Unauthorized**: Usually caused by mixing up the two different Client IDs (see table above)
 - **Local development**: Ensure user secrets are properly configured
 
 ### Debug Commands

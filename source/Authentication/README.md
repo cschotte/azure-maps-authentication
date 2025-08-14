@@ -39,10 +39,12 @@ az ad app create \
 az account show --query tenantId --output tsv
 ```
 
-**Note the following values from the app registration:**
-- Application (client) ID
-- Directory (tenant) ID
+**⚠️ IMPORTANT: Note the following values from the app registration:**
+- **App Registration Client ID** (for `AzureAd:ClientId` setting)
+- **Directory (tenant) ID** (for `AzureAd:TenantId` setting)
 - Your Microsoft Entra ID domain
+
+**🔑 Critical Distinction**: The App Registration Client ID is DIFFERENT from your Azure Maps Client ID!
 
 ## Application Setup
 
@@ -54,17 +56,23 @@ cd source/Authentication
 # Initialize user secrets
 dotnet user-secrets init
 
-# Set Azure Maps configuration
+# Set Azure Maps configuration - GET THIS FROM YOUR AZURE MAPS ACCOUNT (NOT App Registration!)
 dotnet user-secrets set "AzureMaps:ClientId" "<your-azure-maps-client-id>"
+
+# Get your Azure Maps Client ID with this command:
+# az maps account show --name map-azuremaps --resource-group rg-azuremaps --query "properties.uniqueId" --output tsv
 
 # Optional: For user-assigned managed identity
 dotnet user-secrets set "AzureMaps:ManagedIdentityClientId" "<uami-client-id>"
 
-```bash
-# Set Microsoft Entra ID configuration
+# Set Microsoft Entra ID configuration - GET THIS FROM YOUR APP REGISTRATION (NOT Azure Maps!)
 dotnet user-secrets set "AzureAd:TenantId" "<your-tenant-id>"
-dotnet user-secrets set "AzureAd:ClientId" "<your-app-registration-id>"
+dotnet user-secrets set "AzureAd:ClientId" "<your-app-registration-client-id>"
 ```
+
+**⚠️ CRITICAL**: Don't mix up the two different Client IDs:
+- `AzureMaps:ClientId` = Your Azure Maps account Client ID
+- `AzureAd:ClientId` = Your App Registration Client ID
 
 ### 2. Update Configuration (appsettings.json)
 
@@ -76,7 +84,7 @@ The sample includes a template `appsettings.json`. For production deployment, yo
     "Instance": "https://login.microsoftonline.com/",
     "Domain": "[YOUR_DOMAIN].onmicrosoft.com",
     "TenantId": "[YOUR_TENANT_ID]",
-    "ClientId": "[YOUR_APP_CLIENT_ID]",
+    "ClientId": "[YOUR_APP_REGISTRATION_CLIENT_ID]",
     "CallbackPath": "/signin-oidc"
   },
   "AzureMaps": {
@@ -85,6 +93,8 @@ The sample includes a template `appsettings.json`. For production deployment, yo
   }
 }
 ```
+
+**⚠️ Remember**: These are TWO different Client IDs from different Azure services!
 
 ### 3. Run Locally
 
@@ -185,8 +195,21 @@ Users must be added to your Microsoft Entra ID tenant to access the application.
 
 ## Troubleshooting
 
+### ⚠️ Critical: Two Different Client IDs
+**This is the #1 source of 401 authentication errors**
+
+| Client ID Type | Purpose | Where to Find | Configuration Setting |
+|----------------|---------|---------------|----------------------|
+| **Azure Maps Client ID** | Identifies your Maps account | Azure Portal → Your Maps Account → Authentication<br/>CLI: `az maps account show --query "properties.uniqueId"` | `AzureMaps:ClientId` |
+| **App Registration Client ID** | Identifies your Microsoft Entra ID app | Azure Portal → Microsoft Entra ID → App Registrations | `AzureAd:ClientId` |
+
+**⚠️ Common Mistake**: Using the App Registration Client ID in the `AzureMaps:ClientId` setting will cause 401 authentication errors.
+
+### Common Issues
+
 | Issue | Solution |
 |-------|----------|
+| 401 Unauthorized | ⚠️ **Check Client IDs**: Ensure you're using the correct Client ID for each setting |
 | Login redirect fails | Verify app registration redirect URIs |
 | Token fetch fails | Ensure managed identity has correct permissions |
 | Users can't access | Check user exists in Microsoft Entra ID tenant |

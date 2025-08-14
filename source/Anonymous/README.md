@@ -68,12 +68,17 @@ cd source/Anonymous
 # Initialize user secrets
 dotnet user-secrets init
 
-# Set the Azure Maps client ID (from your Maps account)
+# Set the Azure Maps client ID (from your Maps account - NOT an App Registration!)
 dotnet user-secrets set "AzureMaps:ClientId" "<your-azure-maps-client-id>"
+
+# Get your Azure Maps Client ID with this command:
+az maps account show --name map-azuremaps --resource-group rg-azuremaps --query "properties.uniqueId" --output tsv
 
 # Optional: For user-assigned managed identity
 dotnet user-secrets set "AzureMaps:ManagedIdentityClientId" "<uami-client-id>"
 ```
+
+**⚠️ Important**: The Azure Maps Client ID is found in your Azure Maps account, not in Microsoft Entra ID App Registrations.
 
 ### 2. Run Locally
 
@@ -137,11 +142,21 @@ az webapp config appsettings set \
 
 ## Troubleshooting
 
+### ⚠️ Important: Azure Maps Client ID
+**Common mistake**: The `AzureMaps:ClientId` setting requires your Azure Maps account Client ID, not an App Registration Client ID.
+
+```bash
+# Get the correct Azure Maps Client ID:
+az maps account show --name map-azuremaps --resource-group rg-azuremaps --query "properties.uniqueId" --output tsv
+```
+
+### Common Issues
+
 | Issue | Solution |
 |-------|----------|
-| Token fetch fails | Verify managed identity has Azure Maps Data Reader role |
-| 401/403 errors | Check role assignment scope and permissions |
-| Map not rendering | Confirm client ID is correctly configured |
+| 401 Unauthorized | Verify you're using the Azure Maps Client ID (not App Registration ID) |
+| Token fetch fails | Ensure managed identity has "Azure Maps Data Reader" role |
+| Map not loading | Check browser console for authentication errors |
 | Local dev issues | Ensure user secrets are set and Azure CLI is authenticated |
 
 ### Debug Commands
