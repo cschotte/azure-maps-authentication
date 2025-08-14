@@ -4,41 +4,29 @@ One of the requirements when building a business application, which may give acc
 
 Our [Azure Maps docs](https://docs.azuremaps.com/) describe in detail [many different authentication scenarios](https://docs.microsoft.com/azure/azure-maps/azure-maps-authentication) but the complexity can make it seem difficult to implement. This blog post will focus on our most requested authentication scenario for Azure Maps. Use the following step by step guidance to have a .NET web application embedded Azure Maps web control where only authenticated users can see the website and use the map.
 
-## Prerequisites
+## Samples overview
 
-In this article, we use the following resources:
+This repo contains three small, beginner-friendly ASP.NET Core MVC samples that progressively add security:
 
-* .NET 9.0 and the C# programming language. You can download, and install the latest version of .NET from https://dot.net/
-* To make it easier to edit source code, we also recommend installing Visual Studio Code Edition, which is a lightweight but powerful source code editor from Microsoft https://code.visualstudio.com/
-* Before you can use Azure Maps, you will need to sign up for a free Azure subscription, at https://azure.microsoft.com/free
-* And finally, install the Azure Command-Line Interface (CLI) tools. Read here [How to install the Azure CLI](https://docs.microsoft.com/cli/azure/install-azure-cli).
+- `source/KeyOnly` — Uses an Azure Maps subscription key. Easiest to start with; not for production.
+- `source/Anonymous` — Uses Managed Identities to get an Azure AD token for Azure Maps; no user login.
+- `source/Authentication` — Builds on Anonymous and adds Azure AD sign-in to protect the site and the token API.
 
-## Step 1. Basic Web Application with Azure Maps
+Each sample includes a README in its folder with quick start steps and a short “how it works” section.
+# Azure Maps authentication samples for ASP.NET Core (beginner-friendly)
 
-Start with a basic .NET web application that uses an Azure Maps subscription key. This “key-only” approach is fine for local demos but should not be used in production. In Step 2 we’ll replace the key with managed identities.
 
-This repository already includes a ready-to-run sample at `source/KeyOnly` that follows secure config practices (no keys in source). If you’re starting from scratch, mirror the same wiring shown here.
 
-### What we’ll do
-- Add a strongly-typed options class for the key
-- Bind options in `Program.cs`
-- Inject options in `HomeController` and pass the key to the view
-- Use Azure Maps Web SDK v3 and initialize the map in `wwwroot/js/site.js`
-- Keep the key in user-secrets or env vars (not committed)
 
-### Code changes (already present in KeyOnly)
-
-1) Options class
-
-```csharp
 // File: source/KeyOnly/Models/AzureMapsOptions.cs
+
 namespace KeyOnly.Models;
 
-public class AzureMapsOptions
-{
-    public string? SubscriptionKey { get; set; }
+
 }
+
 ```
+
 
 2) Bind options in startup
 
@@ -98,7 +86,6 @@ public class HomeController : Controller
 {
     <div class="alert alert-warning" role="alert">
         Azure Maps key is not configured. Set <code>AzureMaps:SubscriptionKey</code> via user-secrets or environment variables.
-    </div>
 }
 
 <div id="myMap" data-azure-maps-key="@azureMapsKey" style="width:100%;min-width:290px;height:600px;"></div>
@@ -111,7 +98,6 @@ public class HomeController : Controller
     @* Map initialization is handled in wwwroot/js/site.js *@
 }
 ```
-
 5) Map initialization in `site.js`
 
 ```javascript
@@ -130,8 +116,6 @@ document.addEventListener('DOMContentLoaded', function () {
         console.error('Azure Maps Web SDK not loaded.');
         return;
     }
-
-    const map = new atlas.Map('myMap', {
         center: [-122.33, 47.6],
         zoom: 12,
         style: 'satellite_road_labels',
@@ -158,26 +142,14 @@ document.addEventListener('DOMContentLoaded', function () {
       "Default": "Information",
       "Microsoft.AspNetCore": "Warning"
     }
-  },
-  "AllowedHosts": "*",
   "AzureMaps": {
     "SubscriptionKey": ""
   }
-}
-```
-
-### Provide the key securely
 
 Use user-secrets locally so the key isn’t committed. From the `source/KeyOnly` folder:
 
-```bash
-dotnet user-secrets init
-dotnet user-secrets set "AzureMaps:SubscriptionKey" "<your-azure-maps-key>"
 ```
 
-Alternatively (zsh/macOS), set an environment variable:
-
-```bash
 export AzureMaps__SubscriptionKey="<your-azure-maps-key>"
 ```
 
