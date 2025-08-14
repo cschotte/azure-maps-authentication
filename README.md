@@ -227,107 +227,230 @@ dotnet run
 
 ## Step 2. Managed identities for Azure Maps
 
-In this paragraph, we are removing the ‘shared Key authentication’ (the Azure Maps subscription key) and replacing this with a more secure and production ready managed identities for Azure Maps.
+In this step, we remove the shared key authentication and switch to managed identities for Azure Maps using the Anonymous sample (`source/Anonymous`).
 
 > Managed identities for Azure resources provide Azure services with an automatically managed application-based security principal that can authenticate with Azure AD. With Azure role-based access control (Azure RBAC), the managed identity security principal can be authorized to access Azure Maps services.
 
-This means that the web application can request a short-lived token to get access to Azure Maps from Azure Active Directory (AAD). Because this is managed, we do not need to know any passwords or create users. However, to get this token back to the client (the Azure Maps Web Controls runs in the users’ browser), we need to create a simple token proxy API in our web application to forward this token.
+The web app will request a short‑lived Azure AD token for Azure Maps using its managed identity and return it to the browser through a minimal token proxy endpoint.
 
-We start by creating an Azure Web App where our web application will be hosted and running. This Azure Web App then needs to have rights to get a token for Azure Maps, which we will forward using the token proxy API we create in the below steps.
+### 2.1 Create the Azure resources
 
-2.1 Create an app service plan and web app, and change the unique name and the location for your needs.
+Create an App Service Plan and Web App (adjust names/regions):
 
-```cmd
+```bash
 az appservice plan create --resource-group rg-azuremaps --name plan-azuremaps --location westeurope --sku B1
-
 az webapp create --resource-group rg-azuremaps --plan plan-azuremaps --name web-azuremaps --runtime "DOTNET|9.0"
 ```
 
-2.2 Next, we create a system-assigned identity for this web app. When finished, we are presented with the `principalId`, we need this in the next step. To make it simple, you can see the system-assigned identity as an account Azure manages.
+Enable a system‑assigned identity on the Web App and note the returned `principalId`:
 
-```cmd
+```bash
 az webapp identity assign --name web-azuremaps --resource-group rg-azuremaps
 ```
 
-2.3 Now that we have the `principalId` (use this in the below command) for this system-assigned identity, we can assign the role (what can this system-assigned identity do and access). In this step, we assign the role of [Azure Maps Data Reader](https://docs.microsoft.com/azure/azure-maps/azure-maps-authentication#picking-a-role-definition) to this system-assigned identity, which means that this system-assigned identity can only read and not modify or delete data from your Azure Maps account. You already see this is way more secure than the plain Azure Maps key, which has all the rights to do everything. We also need the `[YOUR_AZURE_SUBSCRIPTION_ID]` from the first step.
+Grant the identity the Azure Maps Data Reader role on your Maps account (replace placeholders):
 
-```cmd
+```bash
 az role assignment create --assignee "[PRINCIPAL_ID]" --role "Azure Maps Data Reader" --scope "/subscriptions/[YOUR_AZURE_SUBSCRIPTION_ID]/resourceGroups/rg-azuremaps/providers/Microsoft.Maps/accounts/map-azuremaps"
 ```
 
-> **Hint** to get your Azure subscription Id use the following command: `az account show --query id --output tsv`
+Hint: get your subscription Id
 
-2.4 To get the access token from Azure Active Directory (AAD) back to the client (the web browser), we will create a simple proxy API forwarding this access token. We start by creating an API controller in our web application and adding the `GetAzureMapsToken()` method.
-
-2.5 First, we must add the **Azure Identity** NuGet package to our web application.
-
-```cmd
-dotnet add package Azure.Identity
+```bash
+az account show --query id --output tsv
 ```
 
-2.6 Next, we create a new `ApiController.cs` file under the folder **Controllers**. This new `ApiController.cs` file will have a method `GetAzureMapsToken()` that is acting like a proxy for our access token. Read [here](https://docs.microsoft.com/aspnet/core/tutorials/first-mvc-app/adding-controller) more about Controllers in a MVC web application.
+### 2.2 Wire up the Anonymous sample
+
+The Anonymous project is already set up with options binding, a token proxy controller, and client‑side map initialization. Review the key pieces below.
+
+1) Options class and configuration binding
 
 ```csharp
+// File: source/Anonymous/Models/AzureMapsOptions.cs
+namespace Anonymous.Models;
+
+public class AzureMapsOptions
+{
+    public string? ClientId { get; set; }
+    // Optional: set if using a user‑assigned managed identity
+    public string? ManagedIdentityClientId { get; set; }
+}
+```
+
+```csharp
+// File: source/Anonymous/Program.cs
+var builder = WebApplication.CreateBuilder(args);
+
+// Bind options from configuration
+builder.Services.Configure<Anonymous.Models.AzureMapsOptions>(builder.Configuration.GetSection("AzureMaps"));
+
+builder.Services.AddControllersWithViews();
+// ...existing code...
+```
+
+2) Token proxy API using DefaultAzureCredential
+
+```csharp
+// File: source/Anonymous/Controllers/ApiController.cs
 using Azure.Core;
 using Azure.Identity;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Options;
+using Anonymous.Models;
 
-namespace AzureMapsDemo.Controllers;
+namespace Anonymous.Controllers;
 
+[ApiController]
+[Route("api")]
 public class ApiController : Controller
 {
-    private readonly DefaultAzureCredential _TokenProvider = new();
+    private readonly DefaultAzureCredential _TokenProvider;
+    private readonly string[] _Scopes = { "https://atlas.microsoft.com/.default" };
 
-    private readonly string[] _Scopes =
+    public ApiController(IOptions<AzureMapsOptions> options)
     {
-            "https://atlas.microsoft.com/.default"
-    };
+        var opts = new DefaultAzureCredentialOptions();
+        var uamiClientId = options.Value.ManagedIdentityClientId;
+        if (!string.IsNullOrWhiteSpace(uamiClientId))
+        {
+            // Prefer a user‑assigned managed identity when provided
+            opts.ManagedIdentityClientId = uamiClientId;
+        }
+        _TokenProvider = new DefaultAzureCredential(opts);
+    }
 
+    [HttpGet("GetAzureMapsToken")]
     public async Task<IActionResult> GetAzureMapsToken()
     {
-        AccessToken accessToken = await _TokenProvider.GetTokenAsync(new TokenRequestContext(_Scopes));
-
-        return new OkObjectResult(accessToken.Token);
+        try
+        {
+            AccessToken at = await _TokenProvider.GetTokenAsync(new TokenRequestContext(_Scopes));
+            return Ok(at.Token);
+        }
+        catch (Exception ex)
+        {
+            return Problem(title: "Failed to acquire Azure Maps token", statusCode: 500, detail: ex.Message);
+        }
     }
 }
 ```
 
-2.7 Now that we have our token API proxy, we only need to change the authentication options for the Azure Maps Web Control. Replace in the file `Views/Home/index.cshtml` the authOptions with the following:
+3) Controller passes Client ID to the view
 
-```js
-// Add authentication details for connecting to Azure Maps.
-authOptions: {
-    // Use Azure Active Directory authentication.
-    authType: 'anonymous',
-    // Your Azure Maps client id for accessing your Azure Maps account.
-    clientId: '[YOUR_AZUREMAPS_CLIENT_ID]',
-    getToken: function (resolve, reject, map) {
-        // URL to your authentication service that retrieves an Azure Active Directory Token
+```csharp
+// File: source/Anonymous/Controllers/HomeController.cs
+using Microsoft.Extensions.Options;
+using Anonymous.Models;
+
+public class HomeController : Controller
+{
+    private readonly IOptions<AzureMapsOptions> _mapsOptions;
+    public HomeController(ILogger<HomeController> logger, IOptions<AzureMapsOptions> mapsOptions)
+    {
+        // ...existing code...
+        _mapsOptions = mapsOptions;
+    }
+    public IActionResult Index()
+    {
+        ViewData["AzureMapsClientId"] = _mapsOptions.Value.ClientId ?? string.Empty;
+        return View();
+    }
+}
+```
+
+4) View uses a data‑attribute and defers init to site.js
+
+```aspnetcorerazor
+// File: source/Anonymous/Views/Home/Index.cshtml
+@{
+    var clientId = (ViewData["AzureMapsClientId"]?.ToString() ?? "");
+}
+
+@if (string.IsNullOrWhiteSpace(clientId))
+{
+    <div class="alert alert-warning" role="alert">
+        Azure Maps Client ID is not configured. Set <code>AzureMaps:ClientId</code> via user-secrets or environment variables.
+    </div>
+}
+
+<div id="myMap" data-azure-maps-clientid="@clientId" style="width:100%;min-width:290px;height:600px;"></div>
+
+@section Scripts
+{
+    <link rel="stylesheet" href="https://atlas.microsoft.com/sdk/javascript/mapcontrol/3/atlas.min.css" />
+    <script src="https://atlas.microsoft.com/sdk/javascript/mapcontrol/3/atlas.min.js"></script>
+    @* Map initialization is handled in wwwroot/js/site.js *@
+}
+```
+
+5) Map initialization with anonymous auth
+
+```javascript
+// File: source/Anonymous/wwwroot/js/site.js
+document.addEventListener('DOMContentLoaded', function () {
+  const el = document.getElementById('myMap');
+  if (!el) return;
+
+  const clientId = el.getAttribute('data-azure-maps-clientid');
+  if (!clientId) {
+    console.warn('Azure Maps client ID missing. Map will not initialize.');
+    return;
+  }
+
+  const map = new atlas.Map('myMap', {
+    center: [-122.33, 47.6],
+    zoom: 12,
+    style: 'satellite_road_labels',
+    view: 'Auto',
+    authOptions: {
+      authType: 'anonymous',
+      clientId: clientId,
+      getToken: function (resolve, reject) {
         fetch('/api/GetAzureMapsToken')
-            .then(function (response) {
-                return response.text();
-            })
-            .then(function (token) {
-                resolve(token);
-            })
-            .catch(function (error) {
-                reject(new Error(`Failed to fetch Azure Maps token: ${error.message}`));
-            });
+          .then(r => { if (!r.ok) throw new Error('Token fetch failed: ' + r.status); return r.text(); })
+          .then(token => resolve(token))
+          .catch(err => reject(new Error('Failed to fetch Azure Maps token: ' + err.message)));
+      }
     }
+  });
+
+  map.events.add('ready', function () { /* post-load code */ });
+});
+```
+
+6) Configuration
+
+```json
+// File: source/Anonymous/appsettings.json
+{
+  "Logging": { "LogLevel": { "Default": "Information", "Microsoft.AspNetCore": "Warning" } },
+  "AllowedHosts": "*",
+  "AzureMaps": {
+    "ClientId": "",
+    "ManagedIdentityClientId": ""
+  }
 }
 ```
 
-2.8 We also need to update the `clientId` we saved when we created the Azure Maps account. (Optional) To get the Azure Maps Client Id again, use the value of `uniqueId` from:
+Provide the Client ID securely for local runs:
 
-```cmd
-az maps account show --name map-azuremaps --resource-group rg-azuremaps
+```bash
+cd source/Anonymous
+dotnet user-secrets init
+dotnet user-secrets set "AzureMaps:ClientId" "<your-azure-maps-client-id>"
+# Optional: if using a user‑assigned managed identity (UAMI) in Azure
+dotnet user-secrets set "AzureMaps:ManagedIdentityClientId" "<uami-client-id>"
 ```
 
-![Managed Identity](images/managed_identity.png)
+Notes
+- System‑assigned identity: leave `ManagedIdentityClientId` empty.
+- User‑assigned identity: set `AzureMaps:ManagedIdentityClientId` to the UAMI’s Client ID.
+- Ensure the managed identity has Azure Maps Data Reader (or appropriate) RBAC on the Maps account.
 
-2.9 Now we can build and deploy our web application that uses managed identities for Azure Maps. We first build and create a release package.
+2.3 Build and deploy
 
-```cmd
+```bash
 dotnet publish --configuration Release
 # For Windows PowerShell
 Compress-Archive -Path bin/Release/net9.0/publish/* -DestinationPath release1.zip
@@ -335,17 +458,13 @@ Compress-Archive -Path bin/Release/net9.0/publish/* -DestinationPath release1.zi
 # zip -r release1.zip bin/Release/net9.0/publish/*
 ```
 
-2.10 Then we publish our release package to the Azure Web App.
+Deploy the ZIP to the Web App:
 
-```cmd
+```bash
 az webapp deployment source config-zip --resource-group rg-azuremaps --name web-azuremaps --src release1.zip
 ```
 
-2.11 Open a web browser and navigate to the https://web-azuremaps.azurewebsites.net/ where the **web-azuremaps** subdomain is your unique name when creating the Azure Web App. The application looks like this:
-
-![Azure Maps Demo website](images/demo.png)
-
-2.12.	(Optional) We can also navigate to the token proxy API https://web-azuremaps.azurewebsites.net/api/GetAzureMapsToken, copy the token, and past this in the https://jwt.ms/ tool to decode and inspect the token.
+Browse to https://web-azuremaps.azurewebsites.net/ and, optionally, check the token proxy at https://web-azuremaps.azurewebsites.net/api/GetAzureMapsToken.
 
 ## Step 3. Protecting the web application and the Azure Maps token proxy API
 
