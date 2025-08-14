@@ -6,6 +6,8 @@
 
 This sample eliminates subscription keys by using Azure Managed Identity to obtain short-lived Azure AD tokens for Azure Maps. The application acts as a token proxy, providing secure access without exposing credentials.
 
+![Azure Maps using Managed Identity](../../images/managed_identity.png)
+
 ## Prerequisites
 
 - Azure Maps account with Managed Identity permissions configured

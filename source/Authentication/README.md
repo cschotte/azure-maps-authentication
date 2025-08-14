@@ -6,6 +6,8 @@
 
 This sample builds upon the Anonymous sample by adding Azure AD user authentication. Users must sign in before accessing the application, and the app uses Managed Identity to securely obtain Azure Maps tokens.
 
+![Azure Maps using Azure AD user authentication](../../images/azure_active_directory.png)
+
 ## Prerequisites
 
 - Azure Maps account with Managed Identity permissions
@@ -99,6 +101,8 @@ Visit `https://localhost:5001` - you'll be redirected to Azure AD for authentica
 ```
 User → Azure AD Login → App Service (Authenticated) → Managed Identity → Azure Maps Token → Map Renders
 ```
+
+![Azure Maps using Azure AD user authentication](../../images/managed_identity.png)
 
 ### Key Components
 
