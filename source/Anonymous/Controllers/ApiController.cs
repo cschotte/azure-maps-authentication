@@ -12,11 +12,11 @@ public class ApiController : Controller
 {
     /// <summary>
     /// This token provider simplifies access tokens for Azure Resources. It uses the Managed Identity of the deployed resource.
-    /// For instance if this application was deployed to Azure App Service or Azure Virtual Machine, you can assign an Azure AD
+    /// For instance if this application was deployed to Azure App Service or Azure Virtual Machine, you can assign a Microsoft Entra ID
     /// identity and this library will use that identity when deployed to production.
     /// </summary>
     /// <remarks>
-    /// This tokenProvider will cache the token in memory, if you would like to reduce the dependency on Azure AD we recommend
+    /// This tokenProvider will cache the token in memory, if you would like to reduce the dependency on Microsoft Entra ID we recommend
     /// implementing a distributed cache combined with using the other methods available on tokenProvider.
     /// </remarks>
     private readonly DefaultAzureCredential _TokenProvider;

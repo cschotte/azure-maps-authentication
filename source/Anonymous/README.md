@@ -4,7 +4,7 @@
 
 ## Overview
 
-This sample eliminates subscription keys by using Azure Managed Identity to obtain short-lived Azure AD tokens for Azure Maps. The application acts as a token proxy, providing secure access without exposing credentials.
+This sample eliminates subscription keys by using Azure Managed Identity to obtain short-lived Microsoft Entra ID tokens for Azure Maps. The application acts as a token proxy, providing secure access without exposing credentials.
 
 ![Azure Maps using Managed Identity](../../images/managed_identity.png)
 
@@ -88,7 +88,7 @@ Visit `https://localhost:5001` to test the application.
 
 ### Authentication Flow
 ```
-Browser → App Service → Managed Identity → Azure AD → Azure Maps Token → Map Renders
+Browser → App Service → Managed Identity → Microsoft Entra ID → Azure Maps Token → Map Renders
 ```
 
 ### Key Components
@@ -168,9 +168,9 @@ curl https://web-azuremaps.azurewebsites.net/api/GetAzureMapsToken
 ## Next Steps
 
 Need user authentication? Upgrade to:
-- **[Authentication Sample](../Authentication/README.md)** - Adds Azure AD user login
+- **[Authentication Sample](../Authentication/README.md)** - Adds Microsoft Entra ID user login
 
 ## Learn More
 
-- [Azure Managed Identity Documentation](https://docs.microsoft.com/azure/active-directory/managed-identities-azure-resources/overview)
+- [Azure Managed Identity Documentation](https://docs.microsoft.com/entra/identity/managed-identities-azure-resources/overview)
 - [Azure Maps Authentication Best Practices](https://docs.microsoft.com/azure/azure-maps/authentication-best-practices)

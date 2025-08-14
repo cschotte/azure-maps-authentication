@@ -1,17 +1,17 @@
-# Authentication Sample - Enterprise with Azure AD + Managed Identity
+# Authentication Sample - Enterprise with Microsoft Entra ID + Managed Identity
 
-> 🔒 **Enterprise Ready**: This sample combines user authentication (Azure AD) with Managed Identity for maximum security. Perfect for enterprise applications requiring user login.
+> 🔒 **Enterprise Ready**: This sample combines user authentication (Microsoft Entra ID) with Managed Identity for maximum security. Perfect for enterprise applications requiring user login.
 
 ## Overview
 
-This sample builds upon the Anonymous sample by adding Azure AD user authentication. Users must sign in before accessing the application, and the app uses Managed Identity to securely obtain Azure Maps tokens.
+This sample builds upon the Anonymous sample by adding Microsoft Entra ID user authentication. Users must sign in before accessing the application, and the app uses Managed Identity to securely obtain Azure Maps tokens.
 
-![Azure Maps using Azure AD user authentication](../../images/azure_active_directory.png)
+![Azure Maps using Microsoft Entra ID user authentication](../../images/azure_active_directory.png)
 
 ## Prerequisites
 
 - Azure Maps account with Managed Identity permissions
-- Azure AD app registration 
+- Microsoft Entra ID app registration 
 - Azure App Service (for production deployment)
 - .NET 9.0 SDK
 
@@ -24,7 +24,7 @@ Follow steps 1-3 from the [Anonymous sample](../Anonymous/README.md#infrastructu
 - System-assigned managed identity
 - Azure Maps Data Reader role assignment
 
-### 2. Register Azure AD Application
+### 2. Register Microsoft Entra ID Application
 
 ```bash
 # Register the application
@@ -42,7 +42,7 @@ az account show --query tenantId --output tsv
 **Note the following values from the app registration:**
 - Application (client) ID
 - Directory (tenant) ID
-- Your Azure AD domain
+- Your Microsoft Entra ID domain
 
 ## Application Setup
 
@@ -60,10 +60,10 @@ dotnet user-secrets set "AzureMaps:ClientId" "<your-azure-maps-client-id>"
 # Optional: For user-assigned managed identity
 dotnet user-secrets set "AzureMaps:ManagedIdentityClientId" "<uami-client-id>"
 
-# Set Azure AD configuration
-dotnet user-secrets set "AzureAd:Domain" "<your-domain>.onmicrosoft.com"
+```bash
+# Set Microsoft Entra ID configuration
 dotnet user-secrets set "AzureAd:TenantId" "<your-tenant-id>"
-dotnet user-secrets set "AzureAd:ClientId" "<your-app-client-id>"
+dotnet user-secrets set "AzureAd:ClientId" "<your-app-registration-id>"
 ```
 
 ### 2. Update Configuration (appsettings.json)
@@ -93,20 +93,20 @@ cd source/Authentication
 dotnet run
 ```
 
-Visit `https://localhost:5001` - you'll be redirected to Azure AD for authentication.
+Visit `https://localhost:5001` - you'll be redirected to Microsoft Entra ID for authentication.
 
 ## How It Works
 
 ### Authentication Flow
 ```
-User → Azure AD Login → App Service (Authenticated) → Managed Identity → Azure Maps Token → Map Renders
+User → Microsoft Entra ID Login → App Service (Authenticated) → Managed Identity → Azure Maps Token → Map Renders
 ```
 
-![Azure Maps using Azure AD user authentication](../../images/login_permissions.png)
+![Azure Maps using Microsoft Entra ID user authentication](../../images/login_permissions.png)
 
 ### Key Components
 
-1. **Global Authentication**: All pages require Azure AD authentication
+1. **Global Authentication**: All pages require Microsoft Entra ID authentication
 2. **Token Proxy**: Protected `/api/GetAzureMapsToken` endpoint
 3. **Managed Identity**: Secure token acquisition for Azure Maps
 4. **User Context**: Access to authenticated user information
@@ -121,7 +121,7 @@ User → Azure AD Login → App Service (Authenticated) → Managed Identity →
 - ✅ User authentication required for all pages
 - ✅ Protected API endpoints with `[Authorize]` attribute
 - ✅ Secure token acquisition via Managed Identity
-- ✅ Automatic Azure AD integration
+- ✅ Automatic Microsoft Entra ID integration
 - ✅ Role-based access control ready
 
 ## Deployment
@@ -148,7 +148,7 @@ az webapp deployment source config-zip \
 ### 3. Configure Production Settings
 
 ```bash
-# Set Azure AD configuration
+# Set Microsoft Entra ID configuration
 az webapp config appsettings set \
   --resource-group rg-azuremaps \
   --name web-azuremaps \
@@ -161,7 +161,7 @@ az webapp config appsettings set \
 
 ### 4. Update App Registration
 
-Update your Azure AD app registration with the production redirect URI:
+Update your Microsoft Entra ID app registration with the production redirect URI:
 
 ```bash
 az ad app update \
@@ -172,7 +172,7 @@ az ad app update \
 ## User Management
 
 ### Adding Users
-Users must be added to your Azure AD tenant to access the application. You can:
+Users must be added to your Microsoft Entra ID tenant to access the application. You can:
 
 1. **Invite Guest Users**:
    ```bash
@@ -189,7 +189,7 @@ Users must be added to your Azure AD tenant to access the application. You can:
 |-------|----------|
 | Login redirect fails | Verify app registration redirect URIs |
 | Token fetch fails | Ensure managed identity has correct permissions |
-| Users can't access | Check user exists in Azure AD tenant |
+| Users can't access | Check user exists in Microsoft Entra ID tenant |
 | Local dev login issues | Verify user secrets are configured correctly |
 
 ### Debug Commands
@@ -209,13 +209,13 @@ curl https://web-azuremaps.azurewebsites.net/api/GetAzureMapsToken
 ## Advanced Configuration
 
 ### Custom Claims and Roles
-Extend the authentication to include custom claims or Azure AD groups for fine-grained access control.
+Extend the authentication to include custom claims or Microsoft Entra ID groups for fine-grained access control.
 
 ### Multi-Tenant Support
-Modify the configuration to support users from multiple Azure AD tenants.
+Modify the configuration to support users from multiple Microsoft Entra ID tenants.
 
 ### Conditional Access
-Configure Azure AD Conditional Access policies for enhanced security.
+Configure Microsoft Entra Conditional Access policies for enhanced security.
 
 ## Security Hardening
 
@@ -247,5 +247,5 @@ Your application now has enterprise-grade security! Consider:
 ## Learn More
 
 - [Microsoft Identity Web Documentation](https://docs.microsoft.com/aspnet/core/security/authentication/identity)
-- [Azure AD B2B Collaboration](https://docs.microsoft.com/azure/active-directory/b2b/)
-- [Conditional Access Policies](https://docs.microsoft.com/azure/active-directory/conditional-access/)
+- [Microsoft Entra ID B2B Collaboration](https://docs.microsoft.com/entra/external-id/b2b-overview)
+- [Microsoft Entra Conditional Access Policies](https://docs.microsoft.com/entra/identity/conditional-access/)

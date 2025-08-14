@@ -1,6 +1,6 @@
 # Azure Maps Authentication Guide
 
-Learn how to securely integrate Azure Maps into your ASP.NET Core applications with proper authentication and authorization. This guide provides three progressive examples that demonstrate different authentication approaches, from basic subscription keys to enterprise-grade Azure AD integration.
+Learn how to securely integrate Azure Maps into your ASP.NET Core applications with proper authentication and authorization. This guide provides three progressive examples that demonstrate different authentication approaches, from basic subscription keys to enterprise-grade Microsoft Entra ID integration.
 
 ![Azure Maps](images/demo.png)
 
@@ -26,7 +26,7 @@ This repository contains three progressive samples that build upon each other:
 |--------|----------------------|----------|----------------|
 | **KeyOnly** | Subscription Key | Development & Learning | ⚠️ Basic |
 | **Anonymous** | Managed Identity | Production Apps | ✅ Secure |
-| **Authentication** | Azure AD + Managed Identity | Enterprise Apps | 🔒 Highly Secure |
+| **Authentication** | Microsoft Entra ID + Managed Identity | Enterprise Apps | 🔒 Highly Secure |
 
 ## 🚀 Quick Start
 
@@ -86,10 +86,10 @@ dotnet run
 📖 **[See detailed Anonymous setup →](source/Anonymous/README.md)**
 
 #### 🔵 Option C: Add User Authentication (Enterprise)
-Requires users to sign in with Azure AD before accessing the application.
+Requires users to sign in with Microsoft Entra ID before accessing the application.
 
 ```bash
-# Register application in Azure AD
+# Register application in Microsoft Entra ID
 az ad app create --display-name "Azure Maps Demo App" \
   --web-redirect-uris https://web-azuremaps.azurewebsites.net/signin-oidc \
   --enable-access-token-issuance true \
@@ -108,7 +108,7 @@ dotnet run
 ### Development vs Production
 - **Development**: Use subscription keys with user secrets
 - **Production**: Always use Managed Identity + Azure RBAC
-- **Enterprise**: Add user authentication with Azure AD
+- **Enterprise**: Add user authentication with Microsoft Entra ID
 
 ### Key Security Considerations
 ```bash
@@ -118,7 +118,7 @@ az maps account update --name map-azuremaps --resource-group rg-azuremaps --disa
 
 ### Authentication Flow Overview
 ```
-User Request → Azure AD Authentication → App Service (Managed Identity) → Azure Maps Token → Map Rendering
+User Request → Microsoft Entra Authentication → App Service (Managed Identity) → Azure Maps Token → Map Rendering
 ```
 
 ## 🛠️ Common Setup Commands

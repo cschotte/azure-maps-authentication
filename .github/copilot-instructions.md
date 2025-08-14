@@ -8,7 +8,7 @@ The codebase contains **three independent ASP.NET Core projects** that demonstra
 
 - **`source/KeyOnly/`** - Basic subscription key authentication (development only)
 - **`source/Anonymous/`** - Managed Identity authentication (production-ready)
-- **`source/Authentication/`** - Azure AD + Managed Identity (enterprise)
+- **`source/Authentication/`** - Microsoft Entra ID + Managed Identity (enterprise)
 
 Each project is a complete, runnable example that builds upon the previous pattern's security model.
 
@@ -45,7 +45,7 @@ AccessToken accessToken = await _TokenProvider.GetTokenAsync(new TokenRequestCon
 ### Authentication Progression
 - **KeyOnly**: Direct subscription key in ViewData for client-side JavaScript
 - **Anonymous**: Server-side token proxy endpoint (`/api/GetAzureMapsToken`)
-- **Authentication**: Same token proxy + Azure AD user authentication with `[Authorize]` filters
+- **Authentication**: Same token proxy + Microsoft Entra ID user authentication with `[Authorize]` filters
 
 ## Development Workflows
 
@@ -114,7 +114,7 @@ dotnet user-secrets set "AzureAd:ClientId" "<app-registration-id>"
   },
   "AzureAd": {  // Authentication project only
     "Instance": "https://login.microsoftonline.com/",
-    "TenantId": "[AAD_TENANT_ID]",
+    "TenantId": "[ENTRA_TENANT_ID]",
     "ClientId": "[APP_REGISTRATION_ID]",
     "CallbackPath": "/signin-oidc"
   }
