@@ -1,5 +1,8 @@
 var builder = WebApplication.CreateBuilder(args);
 
+// Bind options from configuration
+builder.Services.Configure<KeyOnly.Models.AzureMapsOptions>(builder.Configuration.GetSection("AzureMaps"));
+
 // Add services to the container.
 builder.Services.AddControllersWithViews();
 

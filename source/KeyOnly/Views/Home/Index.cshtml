@@ -1,5 +1,6 @@
 ﻿@{
     ViewData["Title"] = "Home Page";
+    var azureMapsKey = (ViewData["AzureMapsKey"]?.ToString() ?? "");
 }
 
 <div class="text-center">
@@ -7,33 +8,19 @@
     <p>Learn about <a href="https://docs.microsoft.com/azure/azure-maps/">building Azure Maps apps with ASP.NET Core</a>.</p>
 </div>
 
-<div id="myMap" style="width:100%;min-width:290px;height:600px;"></div>
+@if (string.IsNullOrWhiteSpace(azureMapsKey))
+{
+    <div class="alert alert-warning" role="alert">
+        Azure Maps key is not configured. Set <code>AzureMaps:SubscriptionKey</code> via user-secrets or environment variables.
+    </div>
+}
+
+<div id="myMap" data-azure-maps-key="@azureMapsKey" style="width:100%;min-width:290px;height:600px;"></div>
 
 @section Scripts
 {
     <link rel="stylesheet" href="https://atlas.microsoft.com/sdk/javascript/mapcontrol/3/atlas.min.css" />
     <script src="https://atlas.microsoft.com/sdk/javascript/mapcontrol/3/atlas.min.js"></script>
 
-    <script>
-        var map;
-
-        // Initialize a map instance.
-        map = new atlas.Map('myMap', {
-            center: [-122.33, 47.6],
-            zoom: 12,
-            style: 'satellite_road_labels',
-            view: 'Auto',
-
-            // Add authentication details for connecting to Azure Maps.
-            authOptions: {
-                authType: 'subscriptionKey',
-                subscriptionKey: '[YOUR_AZURE_MAPS_KEY]'
-            }
-        });
-
-        // Wait until the map resources are ready.
-        map.events.add('ready', function() {
-            // Add your post map load code here.
-        });
-    </script>
+    @* Map initialization is handled in wwwroot/js/site.js *@
 }

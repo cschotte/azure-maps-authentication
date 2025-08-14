@@ -3,16 +3,16 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.2.32630.192
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Authentication", "Authentication\Authentication.csproj", "{50942B1C-3E9C-4CC4-A11D-5BAA99908F69}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Authentication", "source\Authentication\Authentication.csproj", "{50942B1C-3E9C-4CC4-A11D-5BAA99908F69}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Anonymous", "Anonymous\Anonymous.csproj", "{8783C5BD-A9D6-4180-B022-DC5603ADBBFD}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Anonymous", "source\Anonymous\Anonymous.csproj", "{8783C5BD-A9D6-4180-B022-DC5603ADBBFD}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "KeyOnly", "KeyOnly\KeyOnly.csproj", "{A9490EBD-B328-41F5-9176-48B7F869A347}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "KeyOnly", "source\KeyOnly\KeyOnly.csproj", "{A9490EBD-B328-41F5-9176-48B7F869A347}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{79A9A847-1DE7-45E9-9438-5A4DEE53BF92}"
 	ProjectSection(SolutionItems) = preProject
-		..\LICENSE = ..\LICENSE
-		..\README.md = ..\README.md
+		LICENSE = LICENSE
+		README.md = README.md
 	EndProjectSection
 EndProject
 Global
