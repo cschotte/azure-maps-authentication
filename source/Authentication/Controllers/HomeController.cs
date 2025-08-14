@@ -2,6 +2,7 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Authorization;
 using Authentication.Models;
+using Microsoft.Extensions.Options;
 
 namespace Authentication.Controllers;
 
@@ -9,14 +10,17 @@ namespace Authentication.Controllers;
 public class HomeController : Controller
 {
     private readonly ILogger<HomeController> _logger;
+    private readonly IOptions<AzureMapsOptions> _mapsOptions;
 
-    public HomeController(ILogger<HomeController> logger)
+    public HomeController(ILogger<HomeController> logger, IOptions<AzureMapsOptions> mapsOptions)
     {
         _logger = logger;
+        _mapsOptions = mapsOptions;
     }
 
     public IActionResult Index()
     {
+        ViewData["AzureMapsClientId"] = _mapsOptions.Value.ClientId ?? string.Empty;
         return View();
     }
 

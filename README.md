@@ -468,129 +468,139 @@ Browse to https://web-azuremaps.azurewebsites.net/ and, optionally, check the to
 
 ## Step 3. Protecting the web application and the Azure Maps token proxy API
 
-The web application we built in the last paragraph uses managed identities, and the Azure Maps Web Control uses the access token. Unfortunately, the web application and token proxy API are still accessible to everybody. Therefore, in this paragraph, we are adding the Azure Active Directory (AAD) Authentication to the web application and the token proxy API, so that only authenticated users can view the web application and use the Azure Maps Web Control in a secure way. 
+Now that the app uses managed identities to fetch Azure Maps tokens, we’ll require users to sign in with Microsoft Entra ID (Azure AD) and protect both the site and the token proxy. Use the Authentication sample at `source/Authentication`, which already includes the improvements from Step 2 plus authentication.
 
-3.1 We start by registering an application in the Azure Active Directory, and we need this application registration later to give access to the web application and token proxy API.
+### 3.1 Register an app in Microsoft Entra ID (Azure AD)
 
-```cmd
-az ad app create --display-name "Azure Maps Demo App" --web-redirect-uris https://web-azuremaps.azurewebsites.net/signin-oidc --enable-access-token-issuance true --enable-id-token-issuance true --sign-in-audience AzureADMyOrg
+Register a web app and record the values for domain, tenant, and app (client) ID. Set the redirect URI to your app’s sign-in URL.
+
+```bash
+az ad app create \
+    --display-name "Azure Maps Demo App" \
+    --web-redirect-uris https://web-azuremaps.azurewebsites.net/signin-oidc \
+    --enable-access-token-issuance true \
+    --enable-id-token-issuance true \
+    --sign-in-audience AzureADMyOrg
 ```
 
-3.2 We need to add four Identity and Authentication NuGet packages to our web application.
+Get your tenant ID if needed:
 
-```cmd
-dotnet add package Microsoft.Identity.Web
-dotnet add package Microsoft.Identity.Web.UI
-dotnet add package Microsoft.AspNetCore.Authentication.JwtBearer
-dotnet add package Microsoft.AspNetCore.Authentication.OpenIdConnect
+```bash
+az account show --query tenantId --output tsv
 ```
 
-3.3 Next, we need to add the `[Authorize]` attribute to every controller in our web application. Below is our token API proxy controller as an example. Do not forget to do this also for the Home controller! 
+### 3.2 Authentication sample structure (already wired)
+
+Packages are already referenced in `source/Authentication/Authentication.csproj`:
+- Microsoft.Identity.Web, Microsoft.Identity.Web.UI
+- Microsoft.AspNetCore.Authentication.OpenIdConnect, JwtBearer
+- Azure.Identity
+
+Global auth is configured in `Program.cs` and we also bind Azure Maps options:
 
 ```csharp
-using Azure.Core;
-using Azure.Identity;
-using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.Authorization;
-
-namespace AzureMapsDemo.Controllers;
-
-[Authorize]
-public class ApiController : Controller
-{
-    ...
-```
-
-3.4 In the program startup file `Program.cs` we need to add the Authentication and Authentication logic. Replace all the default code in the `Program.cs` file with the following:
-
-```csharp
-using Microsoft.AspNetCore.Authentication;
-using Microsoft.AspNetCore.Authentication.OpenIdConnect;
-using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Mvc.Authorization;
-using Microsoft.Identity.Web;
-using Microsoft.Identity.Web.UI;
-
+// File: source/Authentication/Program.cs (excerpt)
 var builder = WebApplication.CreateBuilder(args);
 
-// Add services to the container.
+// Bind Azure Maps options
+builder.Services.Configure<Authentication.Models.AzureMapsOptions>(builder.Configuration.GetSection("AzureMaps"));
+
 builder.Services.AddAuthentication(OpenIdConnectDefaults.AuthenticationScheme)
-    .AddMicrosoftIdentityWebApp(builder.Configuration.GetSection("AzureAd"));
+        .AddMicrosoftIdentityWebApp(builder.Configuration.GetSection("AzureAd"));
 
 builder.Services.AddAuthorization(options =>
 {
-    options.FallbackPolicy = options.DefaultPolicy;
+        options.FallbackPolicy = options.DefaultPolicy; // require auth by default
 });
 
 builder.Services.AddControllersWithViews(options =>
 {
-    var policy = new AuthorizationPolicyBuilder()
-        .RequireAuthenticatedUser()
-        .Build();
-    options.Filters.Add(new AuthorizeFilter(policy));
+        var policy = new AuthorizationPolicyBuilder()
+                .RequireAuthenticatedUser()
+                .Build();
+        options.Filters.Add(new AuthorizeFilter(policy));
 });
-builder.Services.AddRazorPages()
-    .AddMicrosoftIdentityUI();
-
-var app = builder.Build();
-
-// Configure the HTTP request pipeline.
-if (!app.Environment.IsDevelopment())
-{
-    app.UseExceptionHandler("/Home/Error");
-    // The default HSTS value is 30 days. You may want to change this for production scenarios, see https://aka.ms/aspnetcore-hsts.
-    app.UseHsts();
-}
-
-app.UseHttpsRedirection();
-app.UseStaticFiles();
-
-app.UseRouting();
-
-app.UseAuthentication();
-app.UseAuthorization();
-
-app.MapControllerRoute(
-    name: "default",
-    pattern: "{controller=Home}/{action=Index}/{id?}");
-app.MapRazorPages();
-app.MapControllers();
-
-app.Run();
+builder.Services.AddRazorPages().AddMicrosoftIdentityUI();
 ```
 
-3.5 The last step before redeploying our secure web application is to add the details from our registered application in the Azure Active Directory into the configuration file. Open the `appsettings.json` file and replace this with:
+Controllers are protected and the token API uses the same pattern as Step 2 with better routing and optional UAMI:
+
+```csharp
+// File: source/Authentication/Controllers/ApiController.cs (excerpt)
+[Authorize]
+[ApiController]
+[Route("api")]
+public class ApiController : Controller
+{
+        private readonly DefaultAzureCredential _TokenProvider;
+        private readonly string[] _Scopes = { "https://atlas.microsoft.com/.default" };
+
+        public ApiController(IOptions<AzureMapsOptions> options)
+        {
+                var opts = new DefaultAzureCredentialOptions();
+                if (!string.IsNullOrWhiteSpace(options.Value.ManagedIdentityClientId))
+                        opts.ManagedIdentityClientId = options.Value.ManagedIdentityClientId;
+                _TokenProvider = new DefaultAzureCredential(opts);
+        }
+
+        [HttpGet("GetAzureMapsToken")]
+        public async Task<IActionResult> GetAzureMapsToken()
+        {
+                try
+                {
+                        var at = await _TokenProvider.GetTokenAsync(new TokenRequestContext(_Scopes));
+                        return Ok(at.Token);
+                }
+                catch (Exception ex)
+                {
+                        return Problem(title: "Failed to acquire Azure Maps token", statusCode: 500, detail: ex.Message);
+                }
+        }
+}
+```
+
+The `HomeController` passes the Client ID to the view and the view uses a data-attribute while `wwwroot/js/site.js` initializes the map (identical to Step 2 but under `source/Authentication`).
+
+### 3.3 Configure Azure AD and Azure Maps settings
+
+In `source/Authentication/appsettings.json`, fill in your Azure AD values and Client ID for Azure Maps. Leave `ManagedIdentityClientId` empty for system-assigned identity; set it for UAMI.
 
 ```json
 {
-  "AzureAd": {
-    "Instance": "https://login.microsoftonline.com/",
-    "Domain": "[PUBLISHER_DOMAIN]",
-    "TenantId": "[AAD_TENANT_ID]",
-    "ClientId": "[APP_ID]",
-    "CallbackPath": "/signin-oidc"
-  },
-  "Logging": {
-    "LogLevel": {
-      "Default": "Information",
-      "Microsoft.AspNetCore": "Warning"
+    "AzureAd": {
+        "Instance": "https://login.microsoftonline.com/",
+        "Domain": "[PUBLISHER_DOMAIN]",
+        "TenantId": "[AAD_TENANT_ID]",
+        "ClientId": "[APP_ID]",
+        "CallbackPath": "/signin-oidc"
+    },
+    "Logging": {
+        "LogLevel": {
+            "Default": "Information",
+            "Microsoft.AspNetCore": "Warning"
+        }
+    },
+    "AllowedHosts": "*",
+    "AzureMaps": {
+        "ClientId": "",
+        "ManagedIdentityClientId": ""
     }
-  },
-  "AllowedHosts": "*"
 }
 ```
 
-3.6 Replace the `[PUBLISHER_DOMAIN]` and `[APP_ID]` with the values we saved in step 1 when we registered the application. Your Azure Active Directory Tenant ID `[AAD_TENANT_ID]`, you can get with the following command:
+For local development, use user-secrets:
 
-```cmd
-az account show --query tenantId --output tsv
+```bash
+cd source/Authentication
+dotnet user-secrets init
+dotnet user-secrets set "AzureMaps:ClientId" "<your-azure-maps-client-id>"
+# Optional for UAMI
+dotnet user-secrets set "AzureMaps:ManagedIdentityClientId" "<uami-client-id>"
 ```
 
-![Azure Active Directory](images/azure_active_directory.png)
+### 3.4 Build and deploy
 
-3.7 Now we can build and deploy our web application that uses Azure Active Directory to login. We first build and create a release package.
-
-```cmd
+```bash
 dotnet publish --configuration Release
 # For Windows PowerShell
 Compress-Archive -Path bin/Release/net9.0/publish/* -DestinationPath release2.zip
@@ -598,19 +608,19 @@ Compress-Archive -Path bin/Release/net9.0/publish/* -DestinationPath release2.zi
 # zip -r release2.zip bin/Release/net9.0/publish/*
 ```
 
-3.8 Then we publish our release package to the Azure Web App.
+Deploy the ZIP to the Web App:
 
-```cmd
+```bash
 az webapp deployment source config-zip --resource-group rg-azuremaps --name web-azuremaps --src release2.zip
 ```
 
-3.9 Open a web browser and navigate to the https://web-azuremaps.azurewebsites.net/ where the **web-azuremaps** subdomain is your unique name when creating the Azure Web App. You are now prompted to log in with your work or school account (AAD) and give permissions.
+Browse to https://web-azuremaps.azurewebsites.net/. You should be prompted to sign in. After sign-in, the map loads using managed identities. You can also verify the token proxy at https://web-azuremaps.azurewebsites.net/api/GetAzureMapsToken.
 
-![Login Permissions](images/login_permissions.png)
+### 3.5 Hardening tip
 
-3.10 A recommended last step is to disable the use of the Azure Maps Key authentication.
+Disable local (key) auth on your Azure Maps account once you fully rely on tokens:
 
-```cmd
+```bash
 az maps account update --name map-azuremaps --resource-group rg-azuremaps --disable-local-auth true --sku S2
 ```
 

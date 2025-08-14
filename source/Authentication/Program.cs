@@ -7,6 +7,9 @@ using Microsoft.Identity.Web.UI;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// Bind options from configuration
+builder.Services.Configure<Authentication.Models.AzureMapsOptions>(builder.Configuration.GetSection("AzureMaps"));
+
 // Add services to the container.
 builder.Services.AddAuthentication(OpenIdConnectDefaults.AuthenticationScheme)
     .AddMicrosoftIdentityWebApp(builder.Configuration.GetSection("AzureAd"));
