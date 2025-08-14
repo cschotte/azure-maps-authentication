@@ -1,37 +1,174 @@
-# Anonymous sample — Azure Maps with Managed Identities
+# Anonymous Sample - Production with Managed Identity
 
-This sample removes the shared key and uses Managed Identities to request short-lived Azure AD tokens for Azure Maps, returned via a small token proxy API.
+> ✅ **Production Ready**: This sample uses Azure Managed Identity for secure, keyless authentication. Recommended for production applications without user login requirements.
 
-## Quick start
+## Overview
 
-1) Set the Azure Maps Client ID (uniqueId of your Maps account):
+This sample eliminates subscription keys by using Azure Managed Identity to obtain short-lived Azure AD tokens for Azure Maps. The application acts as a token proxy, providing secure access without exposing credentials.
+
+## Prerequisites
+
+- Azure Maps account with Managed Identity permissions configured
+- Azure App Service (for production deployment)
+- .NET 9.0 SDK
+
+## Infrastructure Setup
+
+### 1. Create Azure App Service
+
+```bash
+# Create App Service Plan
+az appservice plan create \
+  --resource-group rg-azuremaps \
+  --name plan-azuremaps \
+  --location westeurope \
+  --sku B1
+
+# Create Web App
+az webapp create \
+  --resource-group rg-azuremaps \
+  --plan plan-azuremaps \
+  --name web-azuremaps \
+  --runtime "DOTNET|9.0"
+```
+
+### 2. Configure Managed Identity
+
+```bash
+# Enable system-assigned managed identity
+az webapp identity assign \
+  --name web-azuremaps \
+  --resource-group rg-azuremaps
+
+# Note the returned principalId for the next step
+```
+
+### 3. Grant Azure Maps Permissions
+
+```bash
+# Get your subscription ID
+SUBSCRIPTION_ID=$(az account show --query id --output tsv)
+
+# Assign Azure Maps Data Reader role
+az role assignment create \
+  --assignee "<PRINCIPAL_ID_FROM_STEP_2>" \
+  --role "Azure Maps Data Reader" \
+  --scope "/subscriptions/$SUBSCRIPTION_ID/resourceGroups/rg-azuremaps/providers/Microsoft.Maps/accounts/map-azuremaps"
+```
+
+## Application Setup
+
+### 1. Configure Azure Maps Client ID
 
 ```bash
 cd source/Anonymous
+
+# Initialize user secrets
 dotnet user-secrets init
+
+# Set the Azure Maps client ID (from your Maps account)
 dotnet user-secrets set "AzureMaps:ClientId" "<your-azure-maps-client-id>"
-# Optional: if using a user-assigned managed identity (UAMI)
+
+# Optional: For user-assigned managed identity
 dotnet user-secrets set "AzureMaps:ManagedIdentityClientId" "<uami-client-id>"
 ```
 
-2) Run the app:
+### 2. Run Locally
 
 ```bash
 cd source/Anonymous
 dotnet run
 ```
 
-## How it works
-- Options binding: `AzureMaps:ClientId` (+ optional `ManagedIdentityClientId`) → `Models/AzureMapsOptions`
-- `ApiController` uses `DefaultAzureCredential` to get a token for scope `https://atlas.microsoft.com/.default`
-- `HomeController` passes the clientId via `ViewData`
-- View exposes `data-azure-maps-clientid`, and `wwwroot/js/site.js` initializes the map with `authType: 'anonymous'` and fetches `/api/GetAzureMapsToken`
+Visit `https://localhost:5001` to test the application.
+
+## How It Works
+
+### Authentication Flow
+```
+Browser → App Service → Managed Identity → Azure AD → Azure Maps Token → Map Renders
+```
+
+### Key Components
+
+1. **Token Proxy**: `/api/GetAzureMapsToken` endpoint securely obtains tokens
+2. **Managed Identity**: `DefaultAzureCredential` handles authentication automatically
+3. **Frontend**: JavaScript fetches tokens from proxy and initializes map
+4. **Security**: No credentials stored in application code
+
+### Important Files
+- `Controllers/ApiController.cs` - Token proxy endpoint
+- `Models/AzureMapsOptions.cs` - Configuration binding
+- `wwwroot/js/site.js` - Map initialization with token fetching
+
+## Deployment
+
+### 1. Build and Package
+
+```bash
+cd source/Anonymous
+dotnet publish --configuration Release
+
+# Create deployment package
+zip -r ../anonymous-app.zip bin/Release/net9.0/publish/*
+```
+
+### 2. Deploy to Azure
+
+```bash
+az webapp deployment source config-zip \
+  --resource-group rg-azuremaps \
+  --name web-azuremaps \
+  --src anonymous-app.zip
+```
+
+### 3. Configure Production Settings
+
+Set the Azure Maps Client ID in Azure App Service:
+
+```bash
+az webapp config appsettings set \
+  --resource-group rg-azuremaps \
+  --name web-azuremaps \
+  --settings AzureMaps__ClientId="<your-azure-maps-client-id>"
+```
 
 ## Troubleshooting
-- Ensure your App Service’s managed identity has Azure Maps Data Reader RBAC
-- If using UAMI, set `AzureMaps:ManagedIdentityClientId`
-- If the JS fails to fetch token, open dev tools and check the network and console
 
-## Learn more
-- Managed Identities: https://learn.microsoft.com/azure/active-directory/managed-identities-azure-resources/overview
-- Azure Maps authentication: https://docs.microsoft.com/azure/azure-maps/azure-maps-authentication
+| Issue | Solution |
+|-------|----------|
+| Token fetch fails | Verify managed identity has Azure Maps Data Reader role |
+| 401/403 errors | Check role assignment scope and permissions |
+| Map not rendering | Confirm client ID is correctly configured |
+| Local dev issues | Ensure user secrets are set and Azure CLI is authenticated |
+
+### Debug Commands
+
+```bash
+# Verify managed identity
+az webapp identity show --name web-azuremaps --resource-group rg-azuremaps
+
+# Check role assignments
+az role assignment list --assignee "<PRINCIPAL_ID>" --output table
+
+# Test token endpoint
+curl https://web-azuremaps.azurewebsites.net/api/GetAzureMapsToken
+```
+
+## Security Benefits
+
+- ✅ No shared secrets or subscription keys
+- ✅ Automatic token rotation
+- ✅ Azure RBAC integration
+- ✅ Audit trail through Azure Activity Log
+- ✅ Principle of least privilege
+
+## Next Steps
+
+Need user authentication? Upgrade to:
+- **[Authentication Sample](../Authentication/README.md)** - Adds Azure AD user login
+
+## Learn More
+
+- [Azure Managed Identity Documentation](https://docs.microsoft.com/azure/active-directory/managed-identities-azure-resources/overview)
+- [Azure Maps Authentication Best Practices](https://docs.microsoft.com/azure/azure-maps/authentication-best-practices)
