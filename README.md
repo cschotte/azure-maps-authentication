@@ -15,97 +15,211 @@ In this article, we use the following resources:
 
 ## Step 1. Basic Web Application with Azure Maps
 
-Let's start with a basic .NET web application and Azure Maps. No authentication yet, that will come in the next paragraph. This first step will use an Azure Maps Key (a ‘shared Key authentication’ or subscription key) that should **not** be used in production. An Azure Maps Key has complete control over your Azure Maps resource. In the next paragraph, we will remove this key and replace this with managed identities for Azure resources.
+Start with a basic .NET web application that uses an Azure Maps subscription key. This “key-only” approach is fine for local demos but should not be used in production. In Step 2 we’ll replace the key with managed identities.
 
-Create a folder, we called ours `AzureMapsDemo`, and add a new web application to it. Then open the newly created web application in Visual Studio Code. Start a terminal and enter the following commands:
+This repository already includes a ready-to-run sample at `source/KeyOnly` that follows secure config practices (no keys in source). If you’re starting from scratch, mirror the same wiring shown here.
 
-```cmd
-dotnet new mvc -lang C# -n AzureMapsDemo -f net9.0
-cd AzureMapsDemo
-code .
+### What we’ll do
+- Add a strongly-typed options class for the key
+- Bind options in `Program.cs`
+- Inject options in `HomeController` and pass the key to the view
+- Use Azure Maps Web SDK v3 and initialize the map in `wwwroot/js/site.js`
+- Keep the key in user-secrets or env vars (not committed)
+
+### Code changes (already present in KeyOnly)
+
+1) Options class
+
+```csharp
+// File: source/KeyOnly/Models/AzureMapsOptions.cs
+namespace KeyOnly.Models;
+
+public class AzureMapsOptions
+{
+    public string? SubscriptionKey { get; set; }
+}
 ```
 
-Next, we need to add the Azure Maps web control to the Home view, open the file `Views/Home/index.cshtml`, and replace all the content with:
+2) Bind options in startup
 
-```html
+```csharp
+// File: source/KeyOnly/Program.cs
+var builder = WebApplication.CreateBuilder(args);
+
+// Bind options from configuration
+builder.Services.Configure<KeyOnly.Models.AzureMapsOptions>(builder.Configuration.GetSection("AzureMaps"));
+
+// Add services to the container.
+builder.Services.AddControllersWithViews();
+// ...existing code...
+```
+
+3) Inject options and pass key to the view
+
+```csharp
+// File: source/KeyOnly/Controllers/HomeController.cs
+using Microsoft.Extensions.Options;
+using KeyOnly.Models;
+
+public class HomeController : Controller
+{
+    private readonly ILogger<HomeController> _logger;
+    private readonly IOptions<AzureMapsOptions> _mapsOptions;
+
+    public HomeController(ILogger<HomeController> logger, IOptions<AzureMapsOptions> mapsOptions)
+    {
+        _logger = logger;
+        _mapsOptions = mapsOptions;
+    }
+
+    public IActionResult Index()
+    {
+        ViewData["AzureMapsKey"] = _mapsOptions.Value.SubscriptionKey ?? string.Empty;
+        return View();
+    }
+}
+```
+
+4) View: include SDK v3 and pass key via data-attribute
+
+```aspnetcorerazor
+// File: source/KeyOnly/Views/Home/Index.cshtml
 @{
     ViewData["Title"] = "Home Page";
+    var azureMapsKey = (ViewData["AzureMapsKey"]?.ToString() ?? "");
 }
 
 <div class="text-center">
     <h1 class="display-4">Azure Maps</h1>
     <p>Learn about <a href="https://docs.microsoft.com/azure/azure-maps/">building Azure Maps apps with ASP.NET Core</a>.</p>
-</div>
+    </div>
 
-<div id="myMap" style="width:100%;min-width:290px;height:600px;"></div>
+@if (string.IsNullOrWhiteSpace(azureMapsKey))
+{
+    <div class="alert alert-warning" role="alert">
+        Azure Maps key is not configured. Set <code>AzureMaps:SubscriptionKey</code> via user-secrets or environment variables.
+    </div>
+}
+
+<div id="myMap" data-azure-maps-key="@azureMapsKey" style="width:100%;min-width:290px;height:600px;"></div>
 
 @section Scripts
 {
-    <link rel="stylesheet" href="https://atlas.microsoft.com/sdk/javascript/mapcontrol/2/atlas.min.css" />
-    <script src="https://atlas.microsoft.com/sdk/javascript/mapcontrol/2/atlas.min.js"></script>
+    <link rel="stylesheet" href="https://atlas.microsoft.com/sdk/javascript/mapcontrol/3/atlas.min.css" />
+    <script src="https://atlas.microsoft.com/sdk/javascript/mapcontrol/3/atlas.min.js"></script>
 
-    <script>
-        var map;
-
-        // Initialize a map instance.
-        map = new atlas.Map('myMap', {
-            center: [-122.33, 47.6],
-            zoom: 12,
-            style: 'satellite_road_labels',
-            view: 'Auto',
-
-            // Add authentication details for connecting to Azure Maps.
-            authOptions: {
-                authType: 'subscriptionKey',
-                subscriptionKey: '[YOUR_AZURE_MAPS_KEY]'
-            }
-        });
-
-        // Wait until the map resources are ready.
-        map.events.add('ready', function() {
-            // Add your post map load code here.
-        });
-    </script>
+    @* Map initialization is handled in wwwroot/js/site.js *@
 }
 ```
 
-As you can see, we need a subscription key for Azure Maps before starting the web application and using the map. In the next step, we are creating an Azure resource group and adding a new Azure Maps Account. Then we extract the Azure Maps Primary Key from this Azure Maps Account, which we use in our Home view.
+5) Map initialization in `site.js`
 
-1.1 Login into your Azure subscription and save the Azure subscription Id, we need this for later.
+```javascript
+// File: source/KeyOnly/wwwroot/js/site.js
+document.addEventListener('DOMContentLoaded', function () {
+    const el = document.getElementById('myMap');
+    if (!el) return;
 
-```cmd
+    const key = el.getAttribute('data-azure-maps-key');
+    if (!key) {
+        console.warn('Azure Maps key missing. Map will not initialize.');
+        return;
+    }
+
+    if (typeof atlas === 'undefined' || !atlas || !atlas.Map) {
+        console.error('Azure Maps Web SDK not loaded.');
+        return;
+    }
+
+    const map = new atlas.Map('myMap', {
+        center: [-122.33, 47.6],
+        zoom: 12,
+        style: 'satellite_road_labels',
+        view: 'Auto',
+        authOptions: {
+            authType: 'subscriptionKey',
+            subscriptionKey: key
+        }
+    });
+
+    map.events.add('ready', function () {
+        // Add your post map load code here.
+    });
+});
+```
+
+6) Configuration (leave empty in source)
+
+```json
+// File: source/KeyOnly/appsettings.json
+{
+  "Logging": {
+    "LogLevel": {
+      "Default": "Information",
+      "Microsoft.AspNetCore": "Warning"
+    }
+  },
+  "AllowedHosts": "*",
+  "AzureMaps": {
+    "SubscriptionKey": ""
+  }
+}
+```
+
+### Provide the key securely
+
+Use user-secrets locally so the key isn’t committed. From the `source/KeyOnly` folder:
+
+```bash
+dotnet user-secrets init
+dotnet user-secrets set "AzureMaps:SubscriptionKey" "<your-azure-maps-key>"
+```
+
+Alternatively (zsh/macOS), set an environment variable:
+
+```bash
+export AzureMaps__SubscriptionKey="<your-azure-maps-key>"
+```
+
+### Create an Azure Maps account and get the key
+
+If you don’t have an Azure Maps account yet, create one and retrieve the primary key:
+
+1.1 Sign in to Azure and note your subscription Id.
+
+```bash
 az login
 ```
 
-1.2 (Optional) Select the subscription where you would like to create the Azure Maps Account.
+1.2 (Optional) Select the subscription where you’ll create the Azure Maps account.
 
-```cmd
+```bash
 az account set --subscription "<your subscription>"
 ```
 
-1.3 Create a resource group, and change the name and the location for your needs.
+1.3 Create a resource group (adjust name/region as needed).
 
-```cmd
+```bash
 az group create --location westeurope --name rg-azuremaps
 ```
 
-1.4 Create the Azure Maps Account, and accept the terms and conditions. Save the uniqueId for later.
+1.4 Create the Azure Maps account (save the uniqueId for later if needed).
 
-```cmd
+```bash
 az maps account create --name map-azuremaps --resource-group rg-azuremaps --sku S2
 ```
 
-1.5 Now we can extract the Azure Maps Primary Key and add it to the Home view in our web application.
+1.5 List the keys and copy the primary key.
 
-```cmd
+```bash
 az maps account keys list --name map-azuremaps --resource-group rg-azuremaps
 ```
 
-1.6 Replace the `[YOUR_AZURE_MAPS_KEY]` in the file `Views/Home/index.cshtml` with the Azure Maps Primary Key we just listed in step 1.5.
+1.6 Set the key using user-secrets or the environment variable as shown above.
 
-1.7 Now we can run and test our AzureMapsDemo web application.
+1.7 Run the app (from `source/KeyOnly`).
 
-```cmd
+```bash
 dotnet run
 ```
 
