@@ -2,7 +2,7 @@
 
 Learn how to securely integrate Azure Maps into your ASP.NET Core applications with proper authentication and authorization. This guide provides three progressive examples that demonstrate different authentication approaches, from basic subscription keys to enterprise-grade Azure AD integration.
 
-![Azure Maps](images/demo.png))
+![Azure Maps](images/demo.png)
 
 ## 🎯 What You'll Learn
 

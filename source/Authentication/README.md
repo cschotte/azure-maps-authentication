@@ -102,7 +102,7 @@ Visit `https://localhost:5001` - you'll be redirected to Azure AD for authentica
 User → Azure AD Login → App Service (Authenticated) → Managed Identity → Azure Maps Token → Map Renders
 ```
 
-![Azure Maps using Azure AD user authentication](../../images/managed_identity.png)
+![Azure Maps using Azure AD user authentication](../../images/login_permissions.png)
 
 ### Key Components
 
